@@ -1,2 +1,6 @@
 .vscode
 venv
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
