@@ -7,16 +7,17 @@ from trackbar import create_trackbar, get_trackbar_pos
 def main():
     main_window_name = 'Form Detection'
     binary_window_name = 'Binary'
-    
+
     capture = handle_video_capture(main_window_name, config.VIDEO_PATH)
 
     trackbar_thresh_name = 'Threshold'
     thresh_slider_max = 255
-    create_trackbar(trackbar_thresh_name, main_window_name, thresh_slider_max)
+    create_trackbar(trackbar_thresh_name, main_window_name,
+                    slider_default=60, slider_max=thresh_slider_max)
 
     while True:
         main_frame = video_capture_read(capture)
-        
+
         monochromatic_frame = apply_color_convertion(
             frame=main_frame, color=cv2.COLOR_RGB2GRAY)
 
