@@ -10,6 +10,12 @@ def handle_video_capture(window_name, path):
 
     return capture
 
+def video_capture_read(capture):
+    success, frame = capture.read()
+    if not success:
+        print("Error: Could not read frame.")
+        return None
+    return frame
 
 def check_frame_exit():
     return cv2.waitKey(1) & 0xFF == ord('c')
