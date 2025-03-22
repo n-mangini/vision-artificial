@@ -6,14 +6,16 @@ trackbar_values = {
 }
 
 def on_thresh_change(value):
-    print(value)
+    print("threshold: ", value)
     trackbar_values['thresh'] = value
 
 
 def on_denoise_change(value):
     # Avoid 0 kernel size
-    print(value)
+    print("denoise: ", value)
     if value == 0:
         trackbar_values['denoise'] = 1
+        print("denoise: 1")
     else:
         trackbar_values['denoise'] = value
+        print("denoise: ", value)

@@ -21,7 +21,7 @@ def main():
     cv2.createTrackbar(kernel_trackbar_name, main_frame_name,
                        trackbar_values['denoise'], kernel_contour_max, on_denoise_change)
 
-    while True:
+    while capture.isOpened():
         main_frame = video_capture_read(capture)
 
         # Apply monocromatic
