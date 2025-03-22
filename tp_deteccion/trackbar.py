@@ -1,12 +1,15 @@
 import cv2
 
 
-def create_trackbar(trackbar_name, window_name, slider_default, slider_max):
-    count = slider_max
-    cv2.createTrackbar(trackbar_name, window_name,
-                       slider_default, count, lambda x: None)
+def on_thresh_change(value):
+    global trackbar_thresh_value
+    trackbar_thresh_value = value
 
 
-def get_trackbar_pos(trackbar_name, window_name):
-    return int(cv2.getTrackbarPos(
-        trackbar_name, window_name))
+def on_denoise_change(value):
+    global trackbar_denoise_value
+    # Avoid 0 kernel size
+    if value == 0:
+        trackbar_denoise_value = 1
+    else:
+        trackbar_denoise_value = value

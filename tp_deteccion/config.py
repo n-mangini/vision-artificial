@@ -1,9 +1,8 @@
 import platform
-# config.py - Configuration file for capture path
 
-# RTMP stream URL
-WSL_CAMERA = "/dev/video0"
-WINDOWS_CAMERA = 0
+LINUX_CAMERA_PATH = "/dev/video0"
+WINDOWS_CAMERA_PATH = 0
+
 
 def detect_os():
     system = platform.system()
@@ -15,10 +14,11 @@ def detect_os():
         return "wsl"
     else:
         return "linux"
-    
+
+
 def choose_camera_by_OS():
     os = detect_os()
-    if os == "windows":
-        return WINDOWS_CAMERA
+    if os == "wsl" or os == "linux":
+        return LINUX_CAMERA_PATH
     else:
-        return WSL_CAMERA
+        return WINDOWS_CAMERA_PATH
