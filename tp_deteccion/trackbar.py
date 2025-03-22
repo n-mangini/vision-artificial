@@ -1,15 +1,19 @@
 import cv2
 
+trackbar_values = {
+    'thresh': 60,
+    'denoise': 1
+}
 
 def on_thresh_change(value):
-    global trackbar_thresh_value
-    trackbar_thresh_value = value
+    print(value)
+    trackbar_values['thresh'] = value
 
 
 def on_denoise_change(value):
-    global trackbar_denoise_value
     # Avoid 0 kernel size
+    print(value)
     if value == 0:
-        trackbar_denoise_value = 1
+        trackbar_values['denoise'] = 1
     else:
-        trackbar_denoise_value = value
+        trackbar_values['denoise'] = value

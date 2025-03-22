@@ -1,10 +1,7 @@
 import cv2
 from config import choose_camera_by_OS
 from frame import handle_video_capture, video_capture_read, check_frame_exit, apply_color_convertion, get_threshold_frame, get_denoised_frame
-from trackbar import on_thresh_change, on_denoise_change
-
-trackbar_thresh_value = 60
-trackbar_denoise_value = 1
+from trackbar import on_thresh_change, on_denoise_change, trackbar_values
 
 
 def main():
@@ -17,12 +14,12 @@ def main():
     thresh_trackbar_name = 'Threshold'
     thresh_slider_max = 255
     cv2.createTrackbar(thresh_trackbar_name, main_frame_name,
-                       trackbar_thresh_value, thresh_slider_max, on_thresh_change)
+                       trackbar_values['thresh'], thresh_slider_max, on_thresh_change)
 
     kernel_trackbar_name = 'Denoise'
     kernel_contour_max = 10
     cv2.createTrackbar(kernel_trackbar_name, main_frame_name,
-                       trackbar_denoise_value, kernel_contour_max, on_denoise_change)
+                       trackbar_values['denoise'], kernel_contour_max, on_denoise_change)
 
     while True:
         main_frame = video_capture_read(capture)
@@ -34,11 +31,11 @@ def main():
         # Apply threshold
         threshold_frame = get_threshold_frame(frame=binary_frame, slider_max=thresh_slider_max,
                                               binary=cv2.THRESH_BINARY,
-                                              trackbar_value=trackbar_thresh_value)
+                                              trackbar_value=trackbar_values['thresh'])
 
         # Apply noise reduction
         denoised_frame = get_denoised_frame(
-            frame=threshold_frame, method=cv2.MORPH_ELLIPSE, kernel_size=trackbar_denoise_value)
+            frame=threshold_frame, method=cv2.MORPH_ELLIPSE, kernel_size=trackbar_values['denoise'])
 
         cv2.imshow(main_frame_name, main_frame)
         cv2.imshow(processed_frame_name, denoised_frame)
