@@ -1,36 +1,26 @@
-import cv2
-
 trackbar_values = {
     'thresh': 60,
     'denoise': 1,
     'min_area': 500,
     'max_area': 99999,
-    'shape_tolerance': 0,
+    'min_shape_score': 0,
     'show_all_contours': 0,
     'show_filtered_contours': 1,
 }
 
 
-def on_thresh_change(value):
-    print("threshold: ", value)
-    trackbar_values['thresh'] = value
+def on_toggle_change(name):
+    def callback(value):
+        print(f"{name}: ", value)
+        trackbar_values[name] = value
+    return callback
 
 
-def on_min_area_change(value):
-    print("min area: ", value)
-    trackbar_values['min_area'] = value
-
-
-def on_max_area_change(value):
-    print("max area: ", value)
-    trackbar_values['max_area'] = value
-
-
-def on_shape_tolerance_change(value):
+def on_min_shape_score_change(value):
     # tolerances are float values but trackbar values are integers
     float_value = value / 100.0
-    print("shape tolerance: ", float_value)
-    trackbar_values['shape_tolerance'] = float_value
+    print("min shape score: ", float_value)
+    trackbar_values['min_shape_score'] = float_value
 
 
 def on_denoise_change(value):
@@ -42,9 +32,3 @@ def on_denoise_change(value):
     else:
         trackbar_values['denoise'] = value
         print("denoise: ", value)
-
-
-def on_toggle_change(name):
-    def callback(value):
-        trackbar_values[name] = value
-    return callback

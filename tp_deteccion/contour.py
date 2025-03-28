@@ -27,11 +27,6 @@ def get_saved_contour(path):
     return contours[1]
 
 
-def match_shapes(frame_contours, contour_to_compare):
-    return cv2.matchShapes(
-        contour1=frame_contours, contour2=contour_to_compare, method=cv2.CONTOURS_MATCH_I1, parameter=0)
-
-
 def get_shape_center(contour):
     x, y, w, h = cv2.boundingRect(contour)
     center_x = x + w // 2
