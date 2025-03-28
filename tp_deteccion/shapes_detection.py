@@ -4,16 +4,11 @@ from frame import handle_video_capture, video_capture_read, check_frame_exit, ap
 from trackbar import on_thresh_change, on_denoise_change, on_min_area_change, on_max_area_change, trackbar_values, on_shape_tolerance_change, on_toggle_change
 from contour import filter_contours_by_area, draw_contours, COLOR_GREEN, COLOR_RED, get_saved_contour, match_shapes, get_shape_center
 
-TRIANGLE_CONTOUR = get_saved_contour('tp_deteccion/resources/triangle.png')
-SQUARE_CONTOUR = get_saved_contour('tp_deteccion/resources/square.png')
-STAR_CONTOUR = get_saved_contour('tp_deteccion/resources/star.jpeg')
-CIRCLE_CONTOUR = get_saved_contour('tp_deteccion/resources/circle.jpg')
-
 FIGURE_TEMPLATES = {
-    "Triangle": TRIANGLE_CONTOUR,
-    "Square": SQUARE_CONTOUR,
-    "Star": STAR_CONTOUR,
-    "Circle": CIRCLE_CONTOUR
+    "Triangle": get_saved_contour('tp_deteccion/resources/triangle.png'),
+    "Square": get_saved_contour('tp_deteccion/resources/square.png'),
+    "Star": get_saved_contour('tp_deteccion/resources/star.jpeg'),
+    "Circle": get_saved_contour('tp_deteccion/resources/circle.jpg')
 }
 
 
@@ -45,7 +40,7 @@ def main():
                        trackbar_values['max_area'], max_area_max, on_max_area_change)
 
     shapes_tolerance_trackbar_name = 'Shape Tolerance'
-    shape_tolerance_max = 100
+    shape_tolerance_max = 100  # = 1.0 when converted to float
     cv2.createTrackbar(shapes_tolerance_trackbar_name, main_frame_name,
                        trackbar_values["shape_tolerance"], shape_tolerance_max, on_shape_tolerance_change)
 
@@ -87,7 +82,7 @@ def main():
                 score = cv2.matchShapes(
                     contour, ref_contour, cv2.CONTOURS_MATCH_I1, 0)
 
-                if score < trackbar_values['shape_tolerance'] and score < best_score:
+                if score <= trackbar_values['shape_tolerance'] and score < best_score:
                     best_score = score
                     best_shape = name
 

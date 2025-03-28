@@ -3,10 +3,10 @@ import cv2
 trackbar_values = {
     'thresh': 60,
     'denoise': 1,
-    'min_area': 1,
+    'min_area': 500,
     'max_area': 99999,
     'shape_tolerance': 0,
-    'show_all_contours': 1,
+    'show_all_contours': 0,
     'show_filtered_contours': 1,
 }
 
