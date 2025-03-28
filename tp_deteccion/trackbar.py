@@ -2,12 +2,25 @@ import cv2
 
 trackbar_values = {
     'thresh': 60,
-    'denoise': 1
+    'denoise': 1,
+    'min_area': 1,
+    'max_area': 99999
 }
+
 
 def on_thresh_change(value):
     print("threshold: ", value)
     trackbar_values['thresh'] = value
+
+
+def on_min_area_change(value):
+    print("min area: ", value)
+    trackbar_values['min_area'] = value
+
+
+def on_max_area_change(value):
+    print("max area: ", value)
+    trackbar_values['max_area'] = value
 
 
 def on_denoise_change(value):
