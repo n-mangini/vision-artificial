@@ -53,6 +53,7 @@ def main():
                        trackbar_values['show_score'], 1, on_toggle_change('show_score'))
     cv2.createTrackbar('Show Area', main_frame_name,
                        trackbar_values['show_area'], 1, on_toggle_change('show_area'))
+
     while capture.isOpened():
         main_frame = video_capture_read(capture)
 
