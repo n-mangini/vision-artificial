@@ -6,6 +6,8 @@ trackbar_values = {
     'min_shape_score': 0,
     'show_all_contours': 0,
     'show_filtered_contours': 1,
+    'show_score': 0,
+    'show_area': 0,
 }
 
 

@@ -8,7 +8,8 @@ FIGURE_TEMPLATES = {
     "Triangle": get_saved_contour('tp_deteccion/resources/triangle.png'),
     "Square": get_saved_contour('tp_deteccion/resources/square.png'),
     "Star": get_saved_contour('tp_deteccion/resources/star.jpeg'),
-    "Circle": get_saved_contour('tp_deteccion/resources/circle.jpg')
+    "Circle": get_saved_contour('tp_deteccion/resources/circle.jpg'),
+    "Quatrefoil": get_saved_contour('tp_deteccion/resources/quatrefoil.png')
 }
 
 
@@ -48,7 +49,10 @@ def main():
                        trackbar_values['show_all_contours'], 1, on_toggle_change('show_all_contours'))
     cv2.createTrackbar('Show Filtered Contours', main_frame_name,
                        trackbar_values['show_filtered_contours'], 1, on_toggle_change('show_filtered_contours'))
-
+    cv2.createTrackbar('Show Score', main_frame_name,
+                       trackbar_values['show_score'], 1, on_toggle_change('show_score'))
+    cv2.createTrackbar('Show Area', main_frame_name,
+                       trackbar_values['show_area'], 1, on_toggle_change('show_area'))
     while capture.isOpened():
         main_frame = video_capture_read(capture)
 
@@ -87,12 +91,18 @@ def main():
                         best_score = score
                         best_shape = name
 
-                cv2.putText(main_frame, text=best_shape, org=(text_x, text_y),
-                            fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5,
-                            color=COLOR_GREEN if best_shape != "Unknown" else COLOR_RED, thickness=2)
-
                 color = COLOR_GREEN if best_shape != "Unknown" else COLOR_RED
                 draw_contours(main_frame, [contour], color)
+
+                cv2.putText(main_frame, text=best_shape, org=(text_x, text_y),
+                            fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5,
+                            color=color, thickness=2)
+                if trackbar_values['show_score']:
+                    cv2.putText(main_frame, f"Score: {best_score:.3f}", (text_x, text_y + 15),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+                if trackbar_values['show_area']:
+                    cv2.putText(main_frame, f"Area: {int(cv2.contourArea(contour))}", (text_x, text_y + 30),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
         if trackbar_values['show_all_contours']:
             draw_contours(main_frame, contours, COLOR_GREEN)
