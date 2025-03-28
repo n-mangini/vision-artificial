@@ -1,8 +1,20 @@
 import cv2
 from config import choose_camera_by_OS
 from frame import handle_video_capture, video_capture_read, check_frame_exit, apply_color_convertion, get_threshold_frame, get_denoised_frame
-from trackbar import on_thresh_change, on_denoise_change, on_min_area_change, on_max_area_change, trackbar_values
-from contour import filter_contours_by_area, draw_contours, COLOR_GREEN, COLOR_RED
+from trackbar import on_thresh_change, on_denoise_change, on_min_area_change, on_max_area_change, trackbar_values, on_shape_tolerance_change
+from contour import filter_contours_by_area, draw_contours, COLOR_GREEN, COLOR_RED, get_saved_contour, match_shapes, get_shape_center
+
+TRIANGLE_CONTOUR = get_saved_contour('tp_deteccion/resources/triangle.png')
+SQUARE_CONTOUR = get_saved_contour('tp_deteccion/resources/square.png')
+STAR_CONTOUR = get_saved_contour('tp_deteccion/resources/star.jpeg')
+CIRCLE_CONTOUR = get_saved_contour('tp_deteccion/resources/circle.jpg')
+
+FIGURE_TEMPLATES = {
+    "Triangle": TRIANGLE_CONTOUR,
+    "Square": SQUARE_CONTOUR,
+    "Star": STAR_CONTOUR,
+    "Circle": CIRCLE_CONTOUR
+}
 
 
 def main():
@@ -32,6 +44,11 @@ def main():
     cv2.createTrackbar(max_area_trackbar_name, main_frame_name,
                        trackbar_values['max_area'], max_area_max, on_max_area_change)
 
+    shapes_tolerance_trackbar_name = 'Shape Tolerance'
+    shape_tolerance_max = 100
+    cv2.createTrackbar(shapes_tolerance_trackbar_name, main_frame_name,
+                       trackbar_values["shape_tolerance"], shape_tolerance_max, on_shape_tolerance_change)
+
     while capture.isOpened():
         main_frame = video_capture_read(capture)
 
@@ -54,6 +71,24 @@ def main():
         filtered_contours = filter_contours_by_area(
             contours, min_area=trackbar_values['min_area'], max_area=trackbar_values['max_area']
         )
+
+        for contour in filtered_contours:
+            text_x, text_y = get_shape_center(contour)
+
+            best_shape = "Unknown"
+            best_score = float("inf")
+
+            for name, ref_contour in FIGURE_TEMPLATES.items():
+                score = cv2.matchShapes(
+                    contour, ref_contour, cv2.CONTOURS_MATCH_I1, 0)
+
+                if score < trackbar_values['shape_tolerance'] and score < best_score:
+                    best_score = score
+                    best_shape = name
+
+            cv2.putText(main_frame, text=best_shape, org=(text_x, text_y),
+                        fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5,
+                        color=COLOR_GREEN if best_shape != "Unknown" else COLOR_RED, thickness=2)
 
         draw_contours(main_frame, contours, COLOR_GREEN)
         draw_contours(main_frame, filtered_contours, COLOR_RED)
