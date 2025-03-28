@@ -5,7 +5,9 @@ trackbar_values = {
     'denoise': 1,
     'min_area': 1,
     'max_area': 99999,
-    'shape_tolerance': 0
+    'shape_tolerance': 0,
+    'show_all_contours': 1,
+    'show_filtered_contours': 1,
 }
 
 
@@ -40,3 +42,9 @@ def on_denoise_change(value):
     else:
         trackbar_values['denoise'] = value
         print("denoise: ", value)
+
+
+def on_toggle_change(name):
+    def callback(value):
+        trackbar_values[name] = value
+    return callback

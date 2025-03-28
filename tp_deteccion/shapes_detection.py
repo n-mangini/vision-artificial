@@ -1,7 +1,7 @@
 import cv2
 from config import choose_camera_by_OS
 from frame import handle_video_capture, video_capture_read, check_frame_exit, apply_color_convertion, get_threshold_frame, get_denoised_frame
-from trackbar import on_thresh_change, on_denoise_change, on_min_area_change, on_max_area_change, trackbar_values, on_shape_tolerance_change
+from trackbar import on_thresh_change, on_denoise_change, on_min_area_change, on_max_area_change, trackbar_values, on_shape_tolerance_change, on_toggle_change
 from contour import filter_contours_by_area, draw_contours, COLOR_GREEN, COLOR_RED, get_saved_contour, match_shapes, get_shape_center
 
 TRIANGLE_CONTOUR = get_saved_contour('tp_deteccion/resources/triangle.png')
@@ -18,7 +18,7 @@ FIGURE_TEMPLATES = {
 
 
 def main():
-    main_frame_name = 'Form Detection'
+    main_frame_name = 'Shape Detection'
     processed_frame_name = 'Processed Detection'
 
     capture = handle_video_capture(main_frame_name, choose_camera_by_OS())
@@ -48,6 +48,11 @@ def main():
     shape_tolerance_max = 100
     cv2.createTrackbar(shapes_tolerance_trackbar_name, main_frame_name,
                        trackbar_values["shape_tolerance"], shape_tolerance_max, on_shape_tolerance_change)
+
+    cv2.createTrackbar('Show All Contours', main_frame_name,
+                       trackbar_values['show_all_contours'], 1, on_toggle_change('show_all_contours'))
+    cv2.createTrackbar('Show Filtered Contours', main_frame_name,
+                       trackbar_values['show_filtered_contours'], 1, on_toggle_change('show_filtered_contours'))
 
     while capture.isOpened():
         main_frame = video_capture_read(capture)
@@ -90,8 +95,11 @@ def main():
                         fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.5,
                         color=COLOR_GREEN if best_shape != "Unknown" else COLOR_RED, thickness=2)
 
-        draw_contours(main_frame, contours, COLOR_GREEN)
-        draw_contours(main_frame, filtered_contours, COLOR_RED)
+        if trackbar_values['show_all_contours']:
+            draw_contours(main_frame, contours, COLOR_GREEN)
+
+        if trackbar_values['show_filtered_contours']:
+            draw_contours(main_frame, filtered_contours, COLOR_GREEN)
 
         cv2.imshow(main_frame_name, main_frame)
         cv2.imshow(processed_frame_name, denoised_frame)
