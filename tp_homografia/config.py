@@ -5,6 +5,17 @@ LINUX_CAMERA_PATH = "/dev/video0"
 WINDOWS_CAMERA_PATH = 0
 
 
+def handle_video_capture(window_name, path):
+    cv2.namedWindow(window_name)
+    capture = cv2.VideoCapture(path)
+
+    if not capture.isOpened():
+        print("Error: Could not open video stream.")
+        return None
+
+    return capture
+
+
 def detect_os():
     system = platform.system()
     if system == "Windows":
