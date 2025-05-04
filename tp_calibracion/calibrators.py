@@ -218,7 +218,7 @@ class CameraCalibrator:
 
 def main():
     # Try loading the distorted calibration image first
-    image = cv2.imread("./img/aleph.png")
+    image = cv2.imread("./img/distorsion.jpg")
     if image is None:
         image = cv2.imread("./img/aleph.png")
     if image is None:
