@@ -15,23 +15,32 @@ class LineDetector:
             lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=50,
                                   minLineLength=min_line_length,
                                   maxLineGap=20)
+            if lines is not None:
+                lines = lines.reshape(-1, 1, 4)  # Ensure consistent shape
         elif method == 'lsd':
             # Line Segment Detector (more advanced)
             lsd = cv2.createLineSegmentDetector(0)
-            lines, _, _, _ = lsd.detect(edges)
+            detected_lines = lsd.detect(edges)
+            lines = detected_lines[0] if detected_lines[0] is not None else np.array([])
         else:
             raise ValueError("Invalid detection method")
             
-        return lines if lines is not None else np.array([])
+        return lines if lines is not None and len(lines) > 0 else np.array([])
 
     @staticmethod
     def auto_detect(image, min_line_count=10):
         """Automatically tries multiple detection methods"""
         methods = ['hough', 'lsd']
+        best_lines = np.array([])
+        
         for method in methods:
             lines = LineDetector.detect_lines(image, method)
             if len(lines) >= min_line_count:
-                return lines
+                if len(lines) > len(best_lines):
+                    best_lines = lines
+        
+        if len(best_lines) >= min_line_count:
+            return best_lines
         
         # If automatic fails, prompt user for manual input
         print("Automatic detection failed. Please manually mark lines.")
@@ -93,7 +102,7 @@ class CameraCalibrator:
             cv2.imshow("Detected Lines", line_img)
             cv2.waitKey(1000)
         
-        # 2. Sample points along lines more thoroughly
+        # 2. Sample points along lines
         points = []
         for line in lines:
             if lines.ndim == 3:
@@ -103,17 +112,15 @@ class CameraCalibrator:
             
             # More points for better accuracy
             for t in np.linspace(0, 1, 100):
-                x = x1 + t * (x2 - x1)
-                y = y1 + t * (y2 - y1)
-                points.append([x, y])
+                points.append([x1 + t*(x2-x1), y1 + t*(y2-y1)])
         
         points = np.array(points, dtype=np.float32)
         
         # 3. Set up camera matrix
         h, w = image.shape[:2]
-        camera_matrix = np.array([[w, 0, w/2], [0, w, h/2], [0, 0, 1]], dtype=np.float64)
+        camera_matrix = np.array([[w, 0, w/2], [0, h, h/2], [0, 0, 1]], dtype=np.float64)
         
-        # 4. Combined calibration with better optimization
+        # 4. Combined calibration
         def objective(params):
             k1, k2, p1, p2, k3 = params
             dist_coeffs = np.array([k1, k2, p1, p2, k3], dtype=np.float64)
@@ -126,16 +133,16 @@ class CameraCalibrator:
                     P=camera_matrix
                 ).reshape(-1, 2)
                 
-                return CameraCalibrator._calculate_deviation(undistorted, lines.shape[0], 100)
+                error = CameraCalibrator._calculate_deviation(undistorted)
+                return error  # Minimize this value
             except:
                 return float('inf')
         
-        # More reasonable initial guess
-        initial_guess = [0.3, -0.1, 0.0, 0.0, 0.0]
-        # More liberal bounds
-        bounds = [(-2, 2), (-2, 2), (-0.2, 0.2), (-0.2, 0.2), (-0.2, 0.2)]
-        result = minimize(objective, initial_guess, method='L-BFGS-B', bounds=bounds, 
-                         options={'maxiter': 500})
+        # Start with small distortion
+        initial_guess = [0.0, 0.0, 0.0, 0.0, 0.0]
+        # Reasonable bounds for distortion coefficients
+        bounds = [(-1, 1), (-1, 1), (-0.1, 0.1), (-0.1, 0.1), (-0.1, 0.1)]
+        result = minimize(objective, initial_guess, method='L-BFGS-B', bounds=bounds)
         
         # 5. Apply correction
         dist_coeffs = np.array(result.x, dtype=np.float64)
@@ -153,41 +160,28 @@ class CameraCalibrator:
         }
 
     @staticmethod
-    def _calculate_deviation(points, num_lines, points_per_line):
+    def _calculate_deviation(points):
         """Calculates how straight the points are"""
         total_error = 0
         valid_groups = 0
         
-        for i in range(num_lines):
-            start_idx = i * points_per_line
-            end_idx = start_idx + points_per_line
-            group = points[start_idx:end_idx]
-            
+        # Split points into groups (assuming 100 points per line)
+        for i in range(0, len(points), 100):
+            group = points[i:i+100]
             if len(group) >= 3:
-                # Fit line using least squares for better accuracy
-                vx, vy, x0, y0 = 0, 0, 0, 0
-                try:
-                    if len(group) >= 3:
-                        # Use cv2.fitLine but handle different return formats
-                        line_params = cv2.fitLine(group.astype(np.float32), cv2.DIST_L2, 0, 0.01, 0.01)
-                        if isinstance(line_params, tuple):
-                            _, (vx, vy, x0, y0) = line_params
-                        else:
-                            vx, vy, x0, y0 = line_params.flatten()[:4]
-                    
-                    # Calculate perpendicular distance from points to line
-                    if vx != 0 or vy != 0:
-                        distances = np.abs((group[:,0]-x0)*vy - (group[:,1]-y0)*vx) / np.sqrt(vx**2 + vy**2)
-                        total_error += np.median(distances)  # Use median instead of mean for robustness
-                        valid_groups += 1
-                except:
-                    pass
+                line = cv2.fitLine(group, cv2.DIST_L2, 0, 0.01, 0.01)
+                vx, vy, x0, y0 = line.flatten()
+                
+                # Calculate perpendicular distances
+                distances = np.abs((group[:,0]-x0)*vy - (group[:,1]-y0)*vx)/np.sqrt(vx**2 + vy**2)
+                total_error += np.mean(distances)
+                valid_groups += 1
         
         return total_error / valid_groups if valid_groups > 0 else float('inf')
 
 def main():
     # Try loading the distorted calibration image first
-    image = cv2.imread("./img/aleph.png")
+    image = cv2.imread("calibration_image.jpg")  # Change to your image path
     if image is None:
         image = cv2.imread("./img/aleph.png")
     if image is None:
@@ -200,30 +194,18 @@ def main():
         
         print("\nCalibration Results:")
         print(f"Camera Matrix:\n{results['camera_matrix']}")
-        print(f"Distortion Coefficients: {results['dist_coeffs']}")
+        print(f"Distortion Coefficients (k1,k2,p1,p2,k3): {results['dist_coeffs']}")
         
         # Save results
         np.savez("calibration_results.npz",
                 camera_matrix=results['camera_matrix'],
                 dist_coeffs=results['dist_coeffs'])
-        
-        # Save undistorted image
         cv2.imwrite("corrected_image.png", results['undistorted_image'])
         
-        # Show comparison in matplotlib
+        # Show comparison
         plt.figure(figsize=(12, 6))
-        plt.subplot(121)
-        plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        plt.title('Original')
-        plt.axis('off')
-        
-        plt.subplot(122)
-        plt.imshow(cv2.cvtColor(results['undistorted_image'], cv2.COLOR_BGR2RGB))
-        plt.title('Corrected')
-        plt.axis('off')
-        
-        plt.tight_layout()
-        plt.savefig('calibration_comparison.png', dpi=150, bbox_inches='tight')
+        plt.subplot(121), plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB)), plt.title('Original')
+        plt.subplot(122), plt.imshow(cv2.cvtColor(results['undistorted_image'], cv2.COLOR_BGR2RGB)), plt.title('Corrected')
         plt.show()
         
     except Exception as e:
