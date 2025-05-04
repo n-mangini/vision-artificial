@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 class LineDetector:
     @staticmethod
     def detect_lines(image, method='hough', min_line_length=150, min_distance=30):
-        """Detección de líneas optimizada"""
+        """Detección de líneas optimizada con suavizado y filtrado"""
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         
         # Suavizado para reducir ruido
@@ -50,139 +50,81 @@ class LineDetector:
         return lines if lines is not None and len(lines) > 0 else np.array([])
 
     @staticmethod
-    def auto_detect(image, min_line_count=8):
-        """Detección automática mejorada"""
+    def auto_detect(image, min_line_count=10):
+        """Auto detección con fallback si no se alcanza el mínimo"""
         methods = ['hough', 'lsd']
         best_lines = np.array([])
-        
+
         for method in methods:
             lines = LineDetector.detect_lines(image, method)
             if len(lines) >= min_line_count:
                 return lines
             elif len(lines) > len(best_lines):
                 best_lines = lines
-        
+
         if len(best_lines) < min_line_count:
-            raise ValueError(f"Error: No se encontraron suficientes líneas ({len(best_lines)}/{min_line_count})")
-            
+            print("Automatic detection failed. Please manually mark lines.")
+            return LineDetector.manual_line_input(image)
+
         return best_lines
 
-class DistortionCalculator:
     @staticmethod
-    def calculate_line_deviation(points):
-        """Calcula qué tan rectas son las líneas detectadas"""
-        if len(points) < 3:
-            return float('inf')
-            
-        # Ajustar una línea a los puntos
-        [vx, vy, x0, y0] = cv2.fitLine(points.astype(np.float32), cv2.DIST_L2, 0, 0.01, 0.01)
+    def manual_line_input(image):
+        """Permite ingresar líneas manualmente si falla la detección automática"""
+        print("Click para marcar líneas (presionar 'q' al terminar)")
         
-        # Calcular distancias perpendiculares
-        a, b, c = vy, -vx, vx*y0 - vy*x0
-        denominator = np.sqrt(a**2 + b**2)
+        lines = []
+        clone = image.copy()
         
-        if denominator == 0:
-            return float('inf')
-            
-        distances = np.abs(a*points[:, 0] + b*points[:, 1] + c) / denominator
+        def click_event(event, x, y, flags, param):
+            if event == cv2.EVENT_LBUTTONDOWN:
+                if 'start' not in param:
+                    param['start'] = (x, y)
+                    cv2.circle(clone, (x, y), 5, (0,255,0), -1)
+                else:
+                    param['end'] = (x, y)
+                    cv2.line(clone, param['start'], param['end'], (0,255,0), 2)
+                    lines.append([param['start'][0], param['start'][1], x, y])
+                    del param['start']
+                cv2.imshow("Manual Line Input", clone)
         
-        return np.mean(distances)
-    
-    @staticmethod
-    def optimize_distortion(points, camera_matrix):
-        """Optimiza los coeficientes de distorsión usando un enfoque más robusto"""
-        h, w = camera_matrix[1, 2] * 2, camera_matrix[0, 2] * 2
+        cv2.imshow("Manual Line Input", clone)
+        cv2.setMouseCallback("Manual Line Input", click_event, {})
         
-        def objective(params):
-            k1, k2, p1, p2, k3 = params
-            dist_coeffs = np.array([k1, k2, p1, p2, k3], dtype=np.float64)
-            
-            try:
-                # Corregir puntos
-                undistorted = cv2.undistortPoints(
-                    points.reshape(-1, 1, 2),
-                    camera_matrix,
-                    dist_coeffs,
-                    P=camera_matrix
-                ).reshape(-1, 2)
-                
-                # Calcular error total
-                total_error = 0
-                point_groups = np.array_split(undistorted, len(undistorted) // 50)
-                
-                for group in point_groups:
-                    if len(group) > 2:
-                        error = DistortionCalculator.calculate_line_deviation(group)
-                        if not np.isinf(error):
-                            total_error += error
-                
-                # Penalizar coeficientes extremos
-                penalty = 0
-                for param in params:
-                    if abs(param) > 1.0:
-                        penalty += (abs(param) - 1.0) ** 2
-                
-                return total_error + penalty
-                
-            except:
-                return float('inf')
+        while True:
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                break
         
-        # Múltiples inicializaciones para evitar mínimos locales
-        best_result = None
-        best_error = float('inf')
-        
-        initial_guesses = [
-            [0.0, 0.0, 0.0, 0.0, 0.0],  # Sin distorsión
-            [-0.5, 0.0, 0.0, 0.0, 0.0], # Barrel
-            [0.5, 0.0, 0.0, 0.0, 0.0],  # Pincushion
-        ]
-        
-        bounds = [(-2, 2), (-1, 1), (-0.1, 0.1), (-0.1, 0.1), (-0.1, 0.1)]
-        
-        for initial_guess in initial_guesses:
-            result = minimize(
-                objective, 
-                initial_guess, 
-                method='L-BFGS-B', 
-                bounds=bounds,
-                options={'maxiter': 1000}
-            )
-            
-            if result.fun < best_error:
-                best_error = result.fun
-                best_result = result
-        
-        return best_result.x
+        cv2.destroyAllWindows()
+        return np.array(lines).reshape(-1, 1, 4)
 
 class CameraCalibrator:
     @staticmethod
-    def calibrate(image, show_steps=True, min_lines=6):
-        """Flujo de calibración mejorado"""
+    def calibrate(image, auto_detect=True, show_steps=True):
+        """Complete calibration workflow"""
         if show_steps:
-            plt.figure(figsize=(10, 8))
-            plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-            plt.title('Imagen Original')
-            plt.axis('off')
-            plt.show()
+            cv2.imshow("Original Image", image)
+            cv2.waitKey(500)
         
-        # 1. Detección de líneas
-        lines = LineDetector.auto_detect(image, min_line_count=min_lines)
+        # 1. Line Detection
+        if auto_detect:
+            lines = LineDetector.auto_detect(image)
+        else:
+            lines = LineDetector.detect_lines(image)
+        
+        if len(lines) < 4:
+            raise ValueError("Insufficient lines detected for calibration")
         
         if show_steps:
             line_img = image.copy()
-            colors = [(0,255,0), (255,0,0), (0,0,255), (255,255,0), (255,0,255), (0,255,255)]
-            for i, line in enumerate(lines):
+            for line in lines:
                 x1, y1, x2, y2 = line[0] if lines.ndim == 3 else line
-                color = colors[i % len(colors)]
-                cv2.line(line_img, (int(x1),int(y1)), (int(x2),int(y2)), color, 2)
-            
-            plt.figure(figsize=(10, 8))
-            plt.imshow(cv2.cvtColor(line_img, cv2.COLOR_BGR2RGB))
-            plt.title(f'Líneas Detectadas ({len(lines)} líneas)')
-            plt.axis('off')
-            plt.show()
+                cv2.line(line_img, (int(x1),int(y1)), (int(x2),int(y2)), (0,255,0), 2)
+            cv2.imshow("Detected Lines", line_img)
+            cv2.waitKey(1000)
         
-        # 2. Extraer puntos de las líneas
+        # 2. Sample points along lines more thoroughly
         points = []
         for line in lines:
             if lines.ndim == 3:
@@ -190,103 +132,133 @@ class CameraCalibrator:
             else:
                 x1, y1, x2, y2 = line
             
-            # Muestrear puntos uniformemente
-            num_samples = int(np.sqrt((x2-x1)**2 + (y2-y1)**2) / 5)
-            num_samples = min(max(num_samples, 10), 100)
-            
-            for t in np.linspace(0, 1, num_samples):
-                points.append([x1 + t*(x2-x1), y1 + t*(y2-y1)])
+            # More points for better accuracy
+            for t in np.linspace(0, 1, 100):
+                x = x1 + t * (x2 - x1)
+                y = y1 + t * (y2 - y1)
+                points.append([x, y])
         
         points = np.array(points, dtype=np.float32)
         
-        # 3. Matriz de cámara inicial
+        # 3. Set up camera matrix
         h, w = image.shape[:2]
-        # Estimar focal length basado en el tamaño de la imagen
-        focal = max(h, w) * 1.2
-        camera_matrix = np.array([[focal, 0, w/2], [0, focal, h/2], [0, 0, 1]], dtype=np.float64)
+        camera_matrix = np.array([[w, 0, w/2], [0, w, h/2], [0, 0, 1]], dtype=np.float64)
         
-        # 4. Optimizar coeficientes de distorsión
-        dist_coeffs = DistortionCalculator.optimize_distortion(points, camera_matrix)
+        # 4. Combined calibration with better optimization
+        def objective(params):
+            k1, k2, p1, p2, k3 = params
+            dist_coeffs = np.array([k1, k2, p1, p2, k3], dtype=np.float64)
+            
+            try:
+                undistorted = cv2.undistortPoints(
+                    points.reshape(-1, 1, 2),
+                    camera_matrix,
+                    dist_coeffs,
+                    P=camera_matrix
+                ).reshape(-1, 2)
+                
+                return CameraCalibrator._calculate_deviation(undistorted, lines.shape[0], 100)
+            except:
+                return float('inf')
         
-        # 5. Corregir imagen
+        # More reasonable initial guess
+        initial_guess = [0.3, -0.1, 0.0, 0.0, 0.0]
+        # More liberal bounds
+        bounds = [(-2, 2), (-2, 2), (-0.2, 0.2), (-0.2, 0.2), (-0.2, 0.2)]
+        result = minimize(objective, initial_guess, method='L-BFGS-B', bounds=bounds, 
+                         options={'maxiter': 500})
+        
+        # 5. Apply correction
+        dist_coeffs = np.array(result.x, dtype=np.float64)
         undistorted_img = cv2.undistort(image, camera_matrix, dist_coeffs)
         
         if show_steps:
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 7))
-            ax1.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-            ax1.set_title('Imagen Original')
-            ax1.axis('off')
-            
-            ax2.imshow(cv2.cvtColor(undistorted_img, cv2.COLOR_BGR2RGB))
-            ax2.set_title('Imagen Corregida')
-            ax2.axis('off')
-            
-            plt.tight_layout()
-            plt.show()
+            cv2.imshow("Corrected Image", undistorted_img)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
         
         return {
             'camera_matrix': camera_matrix,
             'dist_coeffs': dist_coeffs,
-            'undistorted_image': undistorted_img,
-            'radial_coeffs': {'k1': dist_coeffs[0], 'k2': dist_coeffs[1], 'k3': dist_coeffs[4]},
-            'tangential_coeffs': {'p1': dist_coeffs[2], 'p2': dist_coeffs[3]}
+            'undistorted_image': undistorted_img
         }
-    
+
     @staticmethod
-    def show_calibration_results(results):
-        """Muestra resultados detallados"""
-        print("\n=== RESULTADOS DE CALIBRACIÓN ===")
-        print("\nMatriz de Cámara:")
-        print(results['camera_matrix'])
+    def _calculate_deviation(points, num_lines, points_per_line):
+        """Calculates how straight the points are"""
+        total_error = 0
+        valid_groups = 0
         
-        print("\nCoeficientes de Distorsión:")
-        print(f"Array completo: {results['dist_coeffs']}")
+        for i in range(num_lines):
+            start_idx = i * points_per_line
+            end_idx = start_idx + points_per_line
+            group = points[start_idx:end_idx]
+            
+            if len(group) >= 3:
+                # Fit line using least squares for better accuracy
+                vx, vy, x0, y0 = 0, 0, 0, 0
+                try:
+                    if len(group) >= 3:
+                        # Use cv2.fitLine but handle different return formats
+                        line_params = cv2.fitLine(group.astype(np.float32), cv2.DIST_L2, 0, 0.01, 0.01)
+                        if isinstance(line_params, tuple):
+                            _, (vx, vy, x0, y0) = line_params
+                        else:
+                            vx, vy, x0, y0 = line_params.flatten()[:4]
+                    
+                    # Calculate perpendicular distance from points to line
+                    if vx != 0 or vy != 0:
+                        distances = np.abs((group[:,0]-x0)*vy - (group[:,1]-y0)*vx) / np.sqrt(vx**2 + vy**2)
+                        total_error += np.median(distances)  # Use median instead of mean for robustness
+                        valid_groups += 1
+                except:
+                    pass
         
-        print("\nCoeficientes Radiales:")
-        print(f"k1 (principal): {results['radial_coeffs']['k1']:.6f}")
-        print(f"k2 (secundario): {results['radial_coeffs']['k2']:.6f}")
-        print(f"k3 (terciario): {results['radial_coeffs']['k3']:.6f}")
-        
-        print("\nCoeficientes Tangenciales:")
-        print(f"p1: {results['tangential_coeffs']['p1']:.6f}")
-        print(f"p2: {results['tangential_coeffs']['p2']:.6f}")
-        
-        # Interpretación
-        print("\n=== INTERPRETACIÓN ===")
-        k1 = results['radial_coeffs']['k1']
-        if k1 > 0.1:
-            print("Distorsión POSITIVA (pincushion) dominante")
-        elif k1 < -0.1:
-            print("Distorsión NEGATIVA (barrel) dominante")
-        else:
-            print("Distorsión radial mínima")
+        return total_error / valid_groups if valid_groups > 0 else float('inf')
 
 def main():
-    # Cargar imagen
+    # Try loading the distorted calibration image first
     image = cv2.imread("./img/aleph.png")
     if image is None:
-        print("Error: No se encontró la imagen")
+        image = cv2.imread("./img/aleph.png")
+    if image is None:
+        print("Error: No image found")
         return
     
     try:
-        print("Iniciando calibración...")
+        print("Starting calibration...")
         results = CameraCalibrator.calibrate(image, show_steps=True)
         
-        # Mostrar resultados
-        CameraCalibrator.show_calibration_results(results)
+        print("\nCalibration Results:")
+        print(f"Camera Matrix:\n{results['camera_matrix']}")
+        print(f"Distortion Coefficients: {results['dist_coeffs']}")
         
-        # Guardar resultados
+        # Save results
         np.savez("calibration_results.npz",
                 camera_matrix=results['camera_matrix'],
                 dist_coeffs=results['dist_coeffs'])
+        
+        # Save undistorted image
         cv2.imwrite("corrected_image.png", results['undistorted_image'])
         
-        print("\nArchivos guardados:")
-        print("- calibration_results.npz")
-        print("- corrected_image.png")
+        # Show comparison in matplotlib
+        plt.figure(figsize=(12, 6))
+        plt.subplot(121)
+        plt.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        plt.title('Original')
+        plt.axis('off')
+        
+        plt.subplot(122)
+        plt.imshow(cv2.cvtColor(results['undistorted_image'], cv2.COLOR_BGR2RGB))
+        plt.title('Corrected')
+        plt.axis('off')
+        
+        plt.tight_layout()
+        plt.savefig('calibration_comparison.png', dpi=150, bbox_inches='tight')
+        plt.show()
         
     except Exception as e:
-        print(f"Error en calibración: {e}")
+        print(f"Calibration failed: {e}")
         import traceback
         traceback.print_exc()
 
